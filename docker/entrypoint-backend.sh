@@ -1,12 +1,18 @@
 #!/bin/sh
 set -e
 
-echo "[entrypoint] Attente de PostgreSQL sur ${DB_HOST:-db}:${DB_PORT:-5432}..."
+# Hôte Postgres = nom du service Compose (db). Ignorer les anciennes valeurs Hostinger.
+DB_HOST=db
+export DB_HOST
+DB_PORT="${DB_PORT:-5432}"
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+
+echo "[entrypoint] Attente de PostgreSQL sur ${DB_HOST}:${DB_PORT}..."
 
 i=0
-max_attempts=30
+max_attempts=45
 while [ "$i" -lt "$max_attempts" ]; do
-  if pg_isready -h "${DB_HOST:-db}" -p "${DB_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
+  if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" >/dev/null 2>&1; then
     echo "[entrypoint] Base de données prête."
     break
   fi
@@ -15,7 +21,8 @@ while [ "$i" -lt "$max_attempts" ]; do
 done
 
 if [ "$i" -ge "$max_attempts" ]; then
-  echo "[entrypoint] Timeout : PostgreSQL indisponible."
+  echo "[entrypoint] ERREUR : PostgreSQL indisponible après $((max_attempts * 2))s."
+  echo "[entrypoint] Vérifiez les logs du service db (volume PG15 incompatible → supprimer le projet Hostinger et redéployer)."
   exit 1
 fi
 

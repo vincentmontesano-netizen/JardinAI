@@ -79,8 +79,11 @@ Application disponible sur **http://localhost:8090** en local (`APP_PORT=8090`) 
    - `POSTGRES_PASSWORD` — mot de passe fort
    - `APP_PORT=80` — port exposé par Hostinger
    - `GEMINI_API_KEY` — clé Google AI
-3. **Supprimez l’ancien projet** dans Docker Manager (volume PG15 Supabase incompatible), puis redéployez depuis `main`.
-4. Relancer le déploiement — le volume **`jardinia_pg_v2`** créera une base PostgreSQL 16 vierge.
+3. **Ne pas** définir `DATABASE_URL` ni `DB_HOST` dans le panneau (anciennes valeurs `supabase-db` / `jardinia-db` cassent le backend).
+4. **Supprimez l’ancien projet** dans Docker Manager (volume PG15 Supabase incompatible), puis redéployez depuis `main`.
+5. Relancer le déploiement — le volume **`jardinia_pg_v2`** créera une base PostgreSQL 16 vierge.
+
+> **502 sur `/api/trpc/*`** : Nginx répond mais le backend est arrêté. Consultez les logs `backend` et `db` — cause fréquente : Postgres 16 sur un volume PG15 (`database files are incompatible`).
 
 > Erreur `database files are incompatible` ou `supabase_admin` : l’ancien volume `jardinia_pg_data` (Supabase PG15) est encore monté. Suppression du projet obligatoire une fois.
 
