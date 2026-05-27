@@ -66,10 +66,10 @@ cp .env.docker.example .env
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db
 
 # Stack complète (app sur http://localhost:8090) :
-docker compose up --build
+APP_PORT=8090 docker compose up --build
 ```
 
-Application disponible sur **http://localhost:8090** (ou le port défini par `APP_PORT` dans `.env`).
+Application disponible sur **http://localhost:8090** en local (`APP_PORT=8090`) ou port **80** par défaut sur Hostinger.
 
 ### Déploiement Hostinger (Docker Manager)
 

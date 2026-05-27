@@ -1,10 +1,11 @@
+version: "3.8"
+
 # Stack Docker — dev local + déploiement Hostinger / VPS
-# Hostinger : définir APP_PORT=80, JWT_SECRET, POSTGRES_PASSWORD dans les variables d'environnement du panneau.
+# Hostinger (variables panneau) : JWT_SECRET, POSTGRES_PASSWORD, APP_PORT=80, GEMINI_API_KEY
 
 services:
   db:
     image: postgres:16-alpine
-    container_name: jardinia-db
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -13,23 +14,18 @@ services:
     volumes:
       - jardinia_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 90s
+      retries: 15
 
   backend:
     build:
       context: .
       dockerfile: docker/Dockerfile.backend
-    container_name: jardinia-backend
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/postgres}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
@@ -48,8 +44,7 @@ services:
       OWNER_EMAIL: ${OWNER_EMAIL:-}
       ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     expose:
       - "3000"
 
@@ -62,10 +57,9 @@ services:
         VITE_APP_ID: ${APP_ID:-jardinia}
         VITE_ANALYTICS_ENDPOINT: ${VITE_ANALYTICS_ENDPOINT:-}
         VITE_ANALYTICS_WEBSITE_ID: ${VITE_ANALYTICS_WEBSITE_ID:-}
-    container_name: jardinia-frontend
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8090}:80"
+      - "${APP_PORT:-80}:80"
     depends_on:
       - backend
 
