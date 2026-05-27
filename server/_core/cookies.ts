@@ -2,12 +2,6 @@ import type { CookieOptions, Request } from "express";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
-function isIpAddress(host: string) {
-  // Basic IPv4 check and IPv6 presence detection.
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
-  return host.includes(":");
-}
-
 function isSecureRequest(req: Request) {
   if (req.protocol === "https") return true;
 
@@ -24,16 +18,14 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  const isLocal = LOCAL_HOSTS.has(req.hostname);
-  const secure = isLocal ? false : isSecureRequest(req);
-
-  // SameSite=None exige Secure — sur HTTP (IP Hostinger sans TLS) le navigateur ignore le cookie.
-  const sameSite: CookieOptions["sameSite"] = secure ? "none" : "lax";
+  const secure = !LOCAL_HOSTS.has(req.hostname) && isSecureRequest(req);
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite,
+    // SameSite=Lax : compatible HTTP (IP Hostinger) et navigation same-origin.
+    // None exige Secure et casse la session sur http://IP sans TLS.
+    sameSite: "lax",
     secure,
   };
 }

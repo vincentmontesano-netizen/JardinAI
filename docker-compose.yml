@@ -29,6 +29,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.backend
+      args:
+        APP_BUILD_ID: ${APP_BUILD_ID:-local}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}

@@ -10,6 +10,8 @@ COPY patches ./patches/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
+ARG APP_BUILD_ID=local
+ENV APP_BUILD_ID=$APP_BUILD_ID
 COPY . .
 RUN pnpm build:server
 
