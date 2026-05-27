@@ -58,7 +58,7 @@ export default function Dashboard() {
       actions={
         <button
           type="button"
-          onClick={() => navigate("/projects/new")}
+          onClick={() => navigate("/projects/new?new=1")}
           className="btn-primary flex items-center gap-2"
         >
           <Plus size={16} />

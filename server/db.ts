@@ -393,6 +393,39 @@ export async function getProjectById(id: number) {
   return result[0];
 }
 
+export async function updateProjectDraft(
+  id: number,
+  userId: number,
+  data: {
+    title?: string;
+    spaceType?: "interior" | "exterior" | "both";
+    style?: string;
+    budget?: string | null;
+    briefData?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const project = await getProjectById(id);
+  if (!project || project.userId !== userId) {
+    throw new Error("PROJECT_NOT_FOUND");
+  }
+  if (project.status !== "draft") {
+    throw new Error("PROJECT_NOT_DRAFT");
+  }
+
+  const updates: Partial<typeof projects.$inferInsert> = { updatedAt: new Date() };
+  if (data.title !== undefined) updates.title = data.title;
+  if (data.spaceType !== undefined) updates.spaceType = data.spaceType;
+  if (data.style !== undefined) updates.style = data.style;
+  if (data.budget !== undefined) updates.budget = data.budget;
+  if (data.briefData !== undefined) updates.briefData = data.briefData;
+
+  await db.update(projects).set(updates).where(eq(projects.id, id));
+  return project;
+}
+
 export async function updateProjectStatus(
   id: number,
   status: "draft" | "processing" | "completed" | "failed"

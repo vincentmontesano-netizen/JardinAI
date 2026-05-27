@@ -16,6 +16,7 @@ export type ProjectWizardDraft = {
   macroStep: WizardMacroStepId;
   briefSectionIndex: number;
   photos: Array<{ id: string; name: string; type: string; title?: string }>;
+  serverProjectId?: number;
   savedAt: number;
 };
 
@@ -124,6 +125,7 @@ export async function saveProjectWizardDraft(input: {
   macroStep: WizardMacroStepId;
   briefSectionIndex: number;
   photos: Array<{ file: File; preview: string; title: string }>;
+  serverProjectId?: number;
 }): Promise<void> {
   const photoRefs = await savePhotosToIndexedDb(input.photos);
 
@@ -133,6 +135,7 @@ export async function saveProjectWizardDraft(input: {
     macroStep: input.macroStep,
     briefSectionIndex: input.briefSectionIndex,
     photos: photoRefs,
+    serverProjectId: input.serverProjectId,
     savedAt: Date.now(),
   };
 
@@ -178,6 +181,15 @@ export function clearProjectWizardDraft(): void {
 export function hasResumeIntent(): boolean {
   const params = new URLSearchParams(window.location.search);
   return params.get("resume") === "1";
+}
+
+export function shouldStartFreshWizard(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("new") === "1";
+}
+
+export function hasStoredWizardDraft(): boolean {
+  return loadProjectWizardDraft() !== null;
 }
 
 export const POST_PAYMENT_REDIRECT_KEY = "jardinia-post-payment-redirect";

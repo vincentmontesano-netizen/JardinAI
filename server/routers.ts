@@ -17,6 +17,7 @@ import {
   createProject,
   getProjectsByUser,
   getProjectById,
+  updateProjectDraft,
   updateProjectStatus,
   addProjectPhoto,
   getProjectPhotos,
@@ -365,6 +366,54 @@ export const appRouter = router({
           constraints: input.constraints ?? null,
           additionalNotes: input.additionalNotes ?? null,
           briefData: input.briefData ? JSON.stringify(input.briefData) : null,
+          status: "draft",
+        });
+
+        return { id: result.id };
+      }),
+
+    saveDraft: protectedProcedure
+      .input(
+        z.object({
+          id: z.number().optional(),
+          title: z.string().max(255),
+          spaceType: z.enum(["interior", "exterior", "both"]).optional(),
+          style: z.string().max(100).optional(),
+          budget: z.string().optional(),
+          briefData: z.record(z.string(), z.string()).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const briefJson = input.briefData ? JSON.stringify(input.briefData) : null;
+
+        if (input.id) {
+          try {
+            await updateProjectDraft(input.id, ctx.user.id, {
+              title: input.title.trim() || undefined,
+              spaceType: input.spaceType,
+              style: input.style,
+              budget: input.budget ?? null,
+              briefData: briefJson,
+            });
+          } catch {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon introuvable" });
+          }
+          return { id: input.id };
+        }
+
+        if (!input.title.trim() || !input.spaceType) {
+          return { id: null as number | null };
+        }
+
+        const result = await createProject({
+          userId: ctx.user.id,
+          title: input.title.trim(),
+          spaceType: input.spaceType,
+          style: input.style?.trim() || "brouillon",
+          budget: input.budget ?? null,
+          constraints: null,
+          additionalNotes: null,
+          briefData: briefJson,
           status: "draft",
         });
 

@@ -6,11 +6,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import {
   clearProjectWizardDraft,
-  hasResumeIntent,
   loadProjectWizardDraft,
   restorePhotosFromDraft,
   saveProjectWizardDraft,
   setPostPaymentRedirect,
+  shouldStartFreshWizard,
 } from "@/lib/projectWizardDraft";
 import { trpc } from "@/lib/trpc";
 import {
@@ -85,16 +85,26 @@ export default function NewProject() {
   });
   const [briefAnswers, setBriefAnswers] = useState<BriefAnswers>({});
   const [photos, setPhotos] = useState<{ file: File; preview: string; title: string }[]>([]);
+  const [serverDraftId, setServerDraftId] = useState<number | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [draftSaveError, setDraftSaveError] = useState(false);
 
   const sections = useMemo(
     () => (form.spaceType ? getApplicableSections(form.spaceType) : []),
     [form.spaceType]
   );
 
+  const utils = trpc.useUtils();
   const { data: credits } = trpc.credits.balance.useQuery(undefined, {
     enabled: isAuthenticated,
   });
   const createProject = trpc.projects.create.useMutation();
+  const saveServerDraft = trpc.projects.saveDraft.useMutation({
+    onSuccess: (data) => {
+      if (data.id) setServerDraftId(data.id);
+      void utils.projects.list.invalidate();
+    },
+  });
   const testProjectQuery = trpc.admin.testProjects.getBySlot.useQuery(
     { slot: testSlot ?? "1" },
     { enabled: hasTestSlot && isAuthenticated && user?.role === "admin" }
@@ -161,7 +171,13 @@ export default function NewProject() {
   ]);
 
   useEffect(() => {
-    if (authLoading || draftRestored || !hasResumeIntent() || isAdminTestMode) return;
+    if (authLoading || draftRestored || isAdminTestMode) return;
+
+    if (shouldStartFreshWizard()) {
+      clearProjectWizardDraft();
+      setDraftRestored(true);
+      return;
+    }
 
     const draft = loadProjectWizardDraft();
     if (!draft) {
@@ -172,24 +188,85 @@ export default function NewProject() {
     void (async () => {
       setForm(draft.form);
       setBriefAnswers(draft.briefAnswers);
-      setMacroStep("confirm");
+      setMacroStep(draft.macroStep);
       setBriefSectionIndex(draft.briefSectionIndex);
+      if (draft.serverProjectId) setServerDraftId(draft.serverProjectId);
       const restoredPhotos = await restorePhotosFromDraft(draft);
       setPhotos(restoredPhotos);
       setDraftRestored(true);
-      toast.success("Votre projet a été restauré — vous pouvez lancer la génération.");
+      setLastSavedAt(draft.savedAt);
+      toast.success("Brouillon restauré — reprenez où vous en étiez.");
     })();
-  }, [authLoading, draftRestored]);
+  }, [authLoading, draftRestored, isAdminTestMode]);
+
+  useEffect(() => {
+    if (!draftRestored || isAdminTestMode || flowPhase !== "wizard") return;
+
+    const hasContent =
+      form.title.trim().length > 0 ||
+      form.spaceType !== "" ||
+      form.style.length > 0 ||
+      photos.length > 0 ||
+      Object.values(briefAnswers).some((value) => value.trim().length > 0);
+
+    if (!hasContent) return;
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await saveProjectWizardDraft({
+            form,
+            briefAnswers,
+            macroStep,
+            briefSectionIndex,
+            photos,
+            serverProjectId: serverDraftId ?? undefined,
+          });
+          setLastSavedAt(Date.now());
+          setDraftSaveError(false);
+
+          if (isAuthenticated && form.title.trim() && form.spaceType) {
+            const result = await saveServerDraft.mutateAsync({
+              id: serverDraftId ?? undefined,
+              title: form.title.trim(),
+              spaceType: form.spaceType,
+              style: form.style || undefined,
+              budget: form.budget || undefined,
+              briefData: briefAnswers,
+            });
+            if (result.id) setServerDraftId(result.id);
+          }
+        } catch {
+          setDraftSaveError(true);
+        }
+      })();
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    form,
+    briefAnswers,
+    macroStep,
+    briefSectionIndex,
+    photos,
+    draftRestored,
+    isAdminTestMode,
+    flowPhase,
+    isAuthenticated,
+    serverDraftId,
+    saveServerDraft,
+  ]);
 
   const persistDraft = useCallback(async () => {
     await saveProjectWizardDraft({
       form,
       briefAnswers,
-      macroStep: "confirm",
+      macroStep,
       briefSectionIndex,
       photos,
+      serverProjectId: serverDraftId ?? undefined,
     });
-  }, [form, briefAnswers, briefSectionIndex, photos]);
+  }, [form, briefAnswers, macroStep, briefSectionIndex, photos, serverDraftId]);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
@@ -259,7 +336,7 @@ export default function NewProject() {
     setUploadPhase(true);
 
     try {
-      let projectId = testProjectId;
+      let projectId = testProjectId ?? serverDraftId;
       if (!projectId) {
         const project = await createProject.mutateAsync({
           title: form.title,
@@ -269,6 +346,15 @@ export default function NewProject() {
           briefData: briefAnswers,
         });
         projectId = project.id;
+      } else if (!testProjectId) {
+        await saveServerDraft.mutateAsync({
+          id: projectId,
+          title: form.title.trim(),
+          spaceType: form.spaceType,
+          style: form.style,
+          budget: form.budget || undefined,
+          briefData: briefAnswers,
+        });
       }
 
       for (let i = 0; i < photos.length; i++) {
@@ -354,7 +440,19 @@ export default function NewProject() {
             : "Nouveau projet"
       }
       actions={
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-3 text-sm flex-wrap justify-end">
+          {flowPhase === "wizard" && draftRestored && !isAdminTestMode && (
+            <span
+              className={`text-xs ${draftSaveError ? "text-destructive" : "text-muted-foreground"}`}
+              aria-live="polite"
+            >
+              {draftSaveError
+                ? "Échec enregistrement brouillon"
+                : lastSavedAt
+                  ? `Brouillon enregistré à ${new Date(lastSavedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Enregistrement…"}
+            </span>
+          )}
           {isAuthenticated ? (
             <>
               <button
