@@ -97,6 +97,42 @@ Application disponible sur **http://localhost:8090** en local (`APP_PORT=8090`) 
 Le backend attend que la base soit prête, exécute `drizzle-kit migrate`, puis démarre.  
 Les variables `VITE_*` sont injectées au **build** du conteneur frontend — relancer `docker compose up --build` après modification.
 
+### Checklist Hostinger (copier dans le panneau)
+
+| Variable | Exemple / note |
+|----------|----------------|
+| `JWT_SECRET` | chaîne aléatoire longue |
+| `POSTGRES_PASSWORD` | mot de passe fort |
+| `APP_PORT` | `80` |
+| `GEMINI_API_KEY` | clé Google AI |
+| `OWNER_EMAIL` | `vincent.sanonc@gmail.com` |
+| `ADMIN_SEED_PASSWORD` | mot de passe admin |
+| `STRIPE_SECRET_KEY` | `sk_test_...` (obligatoire pour /credits) |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_...` (+ **rebuild frontend**) |
+| `APP_BUILD_ID` | `2026-05-27` (changez à chaque redeploy pour forcer le rebuild) |
+
+**Ne pas définir** : `DATABASE_URL`, `DB_HOST` (valeurs obsolètes).
+
+**Après chaque push GitHub** : redeploy + rebuild **backend et frontend** (pas simple restart).
+
+### Vérifier le déploiement
+
+```bash
+chmod +x scripts/hostinger-check.sh
+./scripts/hostinger-check.sh http://76.13.45.7
+```
+
+Attendu pour `deployStatus` : `"stripe":true`, `"gemini":true`, `"jwt":true`, `"adminSeed":true`.
+
+### Tester Stripe (mode test)
+
+1. Connexion admin sur `/login`
+2. Aller sur `/credits` → « Acheter »
+3. Carte test : `4242 4242 4242 4242`, date future, CVC quelconque
+4. Retour sur `/payment/success` → crédits crédités (webhook **non requis** en test)
+
+> `STRIPE_WEBHOOK_SECRET` est optionnel sur Hostinger IP/HTTP — la confirmation se fait via `/payment/success`.
+
 Pour OAuth, configurer l'URL de redirection vers `http://localhost:8090/api/oauth/callback` (adapter si `APP_PORT` est modifié).
 
 > Si vous lancez **uniquement** la base avec `docker compose up -d supabase-db` pour `pnpm dev`, utilisez  

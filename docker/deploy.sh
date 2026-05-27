@@ -60,7 +60,11 @@ require_var GEMINI_API_KEY
 require_var BUILT_IN_FORGE_API_URL
 require_var BUILT_IN_FORGE_API_KEY
 require_var STRIPE_SECRET_KEY
-require_var STRIPE_WEBHOOK_SECRET
+if [[ -z "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
+  yellow "  ⚠ STRIPE_WEBHOOK_SECRET absent — OK en test (confirmPayment sur /payment/success)"
+else
+  green "  ✓ STRIPE_WEBHOOK_SECRET"
+fi
 
 if [[ "$fail" -ne 0 ]]; then
   red "Configuration incomplète — corrigez .env avant le déploiement."

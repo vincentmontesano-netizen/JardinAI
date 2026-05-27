@@ -174,6 +174,12 @@ async function startServer() {
   const host = process.env.HOST || "0.0.0.0";
   await seedAdminIfConfigured();
 
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) {
+    console.warn("[Stripe] STRIPE_SECRET_KEY absent — paiements /credits désactivés.");
+  } else {
+    console.log("[Stripe] Clé secrète configurée.");
+  }
+
   if (isUsingLocalStorage()) {
     console.log("[Storage] Mode local (dev) — fichiers dans:", getLocalStorageRoot());
   }
