@@ -19,8 +19,8 @@ cp .env.example .env
 # Renseigner les variables dans .env
 
 # PostgreSQL local (requis pour pnpm dev)
-docker compose up -d supabase-db
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres  (port hôte par défaut)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres
 pnpm db:migrate
 pnpm db:seed-admin   # si OWNER_EMAIL + ADMIN_SEED_PASSWORD définis
 
@@ -56,16 +56,33 @@ Stack containerisée en 3 services :
 |---------|------|------|
 | `frontend` | Nginx — assets React + reverse proxy `/api` | **8090** (configurable via `APP_PORT`) |
 | `backend` | Express + tRPC + migrations Drizzle | interne 3000 |
-| `supabase-db` | PostgreSQL (image `supabase/postgres`) | **5433** (configurable via `POSTGRES_HOST_PORT`) |
+| `db` | PostgreSQL (`postgres:16-alpine`) | interne (voir `docker-compose.local.yml` pour le port hôte) |
 
 ```bash
 cp .env.docker.example .env
-# Renseigner JWT_SECRET, OAuth Manus, Stripe, Forge/S3 dans .env
+# Renseigner JWT_SECRET, GEMINI_API_KEY, Stripe, Forge/S3 dans .env
 
+# Dev local avec Postgres accessible sur localhost:5433 :
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db
+
+# Stack complète (app sur http://localhost:8090) :
 docker compose up --build
 ```
 
 Application disponible sur **http://localhost:8090** (ou le port défini par `APP_PORT` dans `.env`).
+
+### Déploiement Hostinger (Docker Manager)
+
+1. Repo : `vincentmontesano-netizen/JardinAI`, branche `main`, fichier `docker-compose.yml`
+2. Variables d'environnement **obligatoires** dans le panneau :
+   - `JWT_SECRET` — secret long et aléatoire
+   - `POSTGRES_PASSWORD` — mot de passe fort
+   - `APP_PORT=80` — port exposé par Hostinger
+   - `GEMINI_API_KEY` — clé Google AI
+3. Relancer le déploiement après push.
+
+> Ne pas utiliser l'image `supabase/postgres` sur un petit VPS : elle échoue souvent au healthcheck.  
+> La stack utilise `postgres:16-alpine` (léger, stable).
 
 Le backend attend que la base soit prête, exécute `drizzle-kit migrate`, puis démarre.  
 Les variables `VITE_*` sont injectées au **build** du conteneur frontend — relancer `docker compose up --build` après modification.

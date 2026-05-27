@@ -31,7 +31,7 @@ RUN chmod +x /entrypoint.sh
 ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV SERVE_STATIC=false
-ENV DB_HOST=supabase-db
+ENV DB_HOST=db
 ENV DB_PORT=5432
 
 EXPOSE 3000

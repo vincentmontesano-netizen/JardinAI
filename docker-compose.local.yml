@@ -1,0 +1,7 @@
+# Surcharge dev local : expose PostgreSQL sur le port hôte (pnpm dev + localhost)
+# Usage : docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db
+
+services:
+  db:
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"

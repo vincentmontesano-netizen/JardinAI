@@ -1,12 +1,12 @@
 #!/bin/sh
 set -e
 
-echo "[entrypoint] Attente de PostgreSQL sur ${DB_HOST:-supabase-db}:${DB_PORT:-5432}..."
+echo "[entrypoint] Attente de PostgreSQL sur ${DB_HOST:-db}:${DB_PORT:-5432}..."
 
 i=0
 max_attempts=30
 while [ "$i" -lt "$max_attempts" ]; do
-  if pg_isready -h "${DB_HOST:-supabase-db}" -p "${DB_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
+  if pg_isready -h "${DB_HOST:-db}" -p "${DB_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
     echo "[entrypoint] Base de données prête."
     break
   fi
