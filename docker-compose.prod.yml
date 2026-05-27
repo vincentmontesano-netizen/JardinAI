@@ -61,6 +61,8 @@ services:
       BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
       OWNER_EMAIL: ${OWNER_EMAIL:-}
       ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
+    volumes:
+      - jardinia_uploads:/app/.data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -122,5 +124,6 @@ services:
 
 volumes:
   jardinia_pg_v2:
+  jardinia_uploads:
   caddy_data:
   caddy_config:

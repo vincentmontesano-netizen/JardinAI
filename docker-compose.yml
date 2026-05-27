@@ -51,6 +51,8 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       OWNER_EMAIL: ${OWNER_EMAIL:-}
       ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
+    volumes:
+      - jardinia_uploads:/app/.data/uploads
     depends_on:
       - db
     expose:
@@ -84,3 +86,4 @@ services:
 
 volumes:
   jardinia_pg_v2:
+  jardinia_uploads:

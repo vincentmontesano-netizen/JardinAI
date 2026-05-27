@@ -2,6 +2,7 @@ import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 import { ENV } from "./env";
+import { isUsingLocalStorage } from "../localStorage";
 
 export const systemRouter = router({
   health: publicProcedure
@@ -20,6 +21,7 @@ export const systemRouter = router({
     gemini: Boolean(process.env.GEMINI_API_KEY?.trim()),
     jwt: Boolean(ENV.cookieSecret.trim() && ENV.cookieSecret !== "change-me-in-production"),
     adminSeed: Boolean(ENV.ownerEmail && process.env.ADMIN_SEED_PASSWORD?.trim()),
+    storage: isUsingLocalStorage() ? ("local" as const) : ("forge" as const),
   })),
 
   notifyOwner: adminProcedure

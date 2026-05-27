@@ -168,7 +168,13 @@ export default function Dashboard() {
                   key={project.id}
                   type="button"
                   className="card-premium card-interactive w-full text-left group"
-                  onClick={() => navigate(`/projects/${project.id}`)}
+                  onClick={() =>
+                    navigate(
+                      project.status === "draft"
+                        ? `/projects/new?draft=${project.id}`
+                        : `/projects/${project.id}`
+                    )
+                  }
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">

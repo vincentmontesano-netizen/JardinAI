@@ -1,5 +1,6 @@
 import type { BriefAnswers, ProjectSpaceType } from "@shared/projectQuestionnaire";
 import type { WizardMacroStepId } from "@shared/projectWizard";
+import type { AiBriefCriteria, BriefInputMode } from "@shared/wizardMeta";
 
 const DRAFT_KEY = "jardinia-project-wizard-draft";
 const PHOTOS_DB_NAME = "jardinia-wizard-photos";
@@ -15,6 +16,8 @@ export type ProjectWizardDraft = {
   briefAnswers: BriefAnswers;
   macroStep: WizardMacroStepId;
   briefSectionIndex: number;
+  briefMode?: BriefInputMode | null;
+  aiCriteria?: AiBriefCriteria;
   photos: Array<{ id: string; name: string; type: string; title?: string }>;
   serverProjectId?: number;
   savedAt: number;
@@ -126,6 +129,8 @@ export async function saveProjectWizardDraft(input: {
   briefSectionIndex: number;
   photos: Array<{ file: File; preview: string; title: string }>;
   serverProjectId?: number;
+  briefMode?: BriefInputMode | null;
+  aiCriteria?: AiBriefCriteria;
 }): Promise<void> {
   const photoRefs = await savePhotosToIndexedDb(input.photos);
 
@@ -134,6 +139,8 @@ export async function saveProjectWizardDraft(input: {
     briefAnswers: input.briefAnswers,
     macroStep: input.macroStep,
     briefSectionIndex: input.briefSectionIndex,
+    briefMode: input.briefMode,
+    aiCriteria: input.aiCriteria,
     photos: photoRefs,
     serverProjectId: input.serverProjectId,
     savedAt: Date.now(),

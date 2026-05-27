@@ -8,7 +8,6 @@ const LOCAL_ROOT = path.resolve(
 
 export function isUsingLocalStorage(): boolean {
   if (ENV.forgeApiUrl && ENV.forgeApiKey) return false;
-  if (ENV.isProduction) return false;
   return true;
 }
 

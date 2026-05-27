@@ -8,6 +8,12 @@ import {
   parseGeminiRetryAfterMs,
   resolveGeminiImageModels,
 } from "../../shared/geminiModels";
+import type { BriefAnswers, ProjectSpaceType } from "../../shared/projectQuestionnaire";
+import {
+  getApplicableSections,
+  isQuestionApplicable,
+} from "../../shared/projectQuestionnaire";
+import type { AiBriefCriteria } from "../../shared/wizardMeta";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_MAX_ATTEMPTS = 5;
@@ -308,4 +314,67 @@ Utilise du markdown structuré (titres, listes, tableaux). Tous les montants en 
   }
 
   return report;
+}
+
+export async function generateBriefFromCriteria(input: {
+  title: string;
+  spaceType: ProjectSpaceType;
+  style: string;
+  budget?: string;
+  criteria: AiBriefCriteria;
+}): Promise<BriefAnswers> {
+  const sections = getApplicableSections(input.spaceType);
+  const questions: Array<{ id: string; label: string; section: string }> = [];
+
+  for (const section of sections) {
+    for (const q of section.questions) {
+      if (!isQuestionApplicable(q, input.spaceType)) continue;
+      questions.push({ id: q.id, label: q.label, section: section.title });
+    }
+  }
+
+  const questionList = questions
+    .map((q) => `- "${q.id}" (${q.section} — ${q.label})`)
+    .join("\n");
+
+  const prompt = `Tu es un paysagiste / architecte d'intérieur en France. Génère un brief client détaillé en JSON.
+
+Projet : ${input.title}
+Type d'espace : ${input.spaceType}
+Style : ${input.style}
+${input.budget ? `Budget : ${input.budget}` : ""}
+
+Critères fournis par le client :
+1. Objectifs : ${input.criteria.clientGoals}
+2. Contraintes : ${input.criteria.mainConstraints}
+3. Ambiance & usage : ${input.criteria.desiredAmbiance}
+
+Pour chaque identifiant de question ci-dessous, rédige une réponse concise en français (1 à 3 phrases).
+Réponds UNIQUEMENT avec un objet JSON : clés = identifiants, valeurs = texte de réponse.
+Omet les questions sans réponse pertinente.
+
+Questions :
+${questionList}`;
+
+  const config = await getGeminiRuntimeConfig();
+  let response: GeminiGenerateContentResponse;
+  try {
+    response = await geminiGenerateContent(config.textModel, [{ text: prompt }], {
+      responseMimeType: "application/json",
+      temperature: 0.5,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(formatGeminiErrorForUser(message));
+  }
+
+  const textPart = response.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text;
+  if (!textPart) throw new Error("Gemini n'a pas généré de brief");
+
+  const parsed = JSON.parse(textPart) as Record<string, string>;
+  const answers: BriefAnswers = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value === "string" && value.trim()) answers[key] = value.trim();
+  }
+  return answers;
 }

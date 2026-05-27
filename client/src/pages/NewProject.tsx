@@ -1,5 +1,7 @@
 import JardiniaLayout from "@/components/JardiniaLayout";
 import { ProjectBriefStep } from "@/components/project-wizard/ProjectBriefStep";
+import { ProjectBriefModeStep } from "@/components/project-wizard/ProjectBriefModeStep";
+import { ProjectBriefAiStep } from "@/components/project-wizard/ProjectBriefAiStep";
 import { ProjectGenerationLoader } from "@/components/project-wizard/ProjectGenerationLoader";
 import { ProjectWizardProgress } from "@/components/project-wizard/ProjectWizardProgress";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -22,6 +24,13 @@ import type { WizardMacroStepId } from "@shared/projectWizard";
 import { CREDIT_PRICING } from "@shared/pricing";
 import { formatCreditBalance, hasAvailableCredits } from "@shared/credits";
 import { isTestProjectSlot, type TestProjectSlot } from "@shared/testProjects";
+import {
+  embedWizardMeta,
+  inferWizardStep,
+  splitWizardMeta,
+  type AiBriefCriteria,
+  type BriefInputMode,
+} from "@shared/wizardMeta";
 import { useLocation } from "wouter";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Loader2, Upload, X } from "lucide-react";
@@ -46,6 +55,19 @@ const SPACE_OPTIONS: { value: ProjectSpaceType; label: string; icon: string; hin
 
 type FlowPhase = "wizard" | "generating";
 
+type WizardPhoto = {
+  file: File | null;
+  preview: string;
+  title: string;
+  existingPhotoId?: number;
+};
+
+function getDraftIdFromUrl(): number | null {
+  const raw = new URLSearchParams(window.location.search).get("draft");
+  const id = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(id) ? id : null;
+}
+
 function Plus({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -66,6 +88,7 @@ export default function NewProject() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [draftRestored, setDraftRestored] = useState(false);
   const testSlot = useMemo(() => getTestSlotFromUrl(), []);
+  const draftIdFromUrl = useMemo(() => getDraftIdFromUrl(), []);
   const hasTestSlot = testSlot !== null;
   const isAdminTestMode = user?.role === "admin" && hasTestSlot;
   const [testProjectId, setTestProjectId] = useState<number | null>(null);
@@ -84,7 +107,14 @@ export default function NewProject() {
     budget: "",
   });
   const [briefAnswers, setBriefAnswers] = useState<BriefAnswers>({});
-  const [photos, setPhotos] = useState<{ file: File; preview: string; title: string }[]>([]);
+  const [briefMode, setBriefMode] = useState<BriefInputMode | null>(null);
+  const [aiCriteria, setAiCriteria] = useState<AiBriefCriteria>({
+    clientGoals: "",
+    mainConstraints: "",
+    desiredAmbiance: "",
+  });
+  const [aiBriefGenerated, setAiBriefGenerated] = useState(false);
+  const [photos, setPhotos] = useState<WizardPhoto[]>([]);
   const [serverDraftId, setServerDraftId] = useState<number | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [draftSaveError, setDraftSaveError] = useState(false);
@@ -109,12 +139,44 @@ export default function NewProject() {
     { slot: testSlot ?? "1" },
     { enabled: hasTestSlot && isAuthenticated && user?.role === "admin" }
   );
+  const generateBrief = trpc.projects.generateBrief.useMutation();
   const getUploadUrl = trpc.projects.getUploadUrl.useMutation();
   const registerPhoto = trpc.projects.registerPhoto.useMutation();
   const generateProject = trpc.projects.generate.useMutation();
 
   const updateBrief = (id: string, value: string) => {
     setBriefAnswers((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const buildBriefPayload = useCallback(
+    () =>
+      embedWizardMeta(briefAnswers, {
+        macroStep,
+        briefSectionIndex,
+        briefMode: briefMode ?? undefined,
+        aiCriteria,
+      }),
+    [briefAnswers, macroStep, briefSectionIndex, briefMode, aiCriteria]
+  );
+
+  const handleGenerateAiBrief = async () => {
+    if (!form.spaceType || !form.title.trim() || !form.style) return;
+    try {
+      const result = await generateBrief.mutateAsync({
+        title: form.title.trim(),
+        spaceType: form.spaceType,
+        style: form.style,
+        budget: form.budget || undefined,
+        clientGoals: aiCriteria.clientGoals.trim(),
+        mainConstraints: aiCriteria.mainConstraints.trim(),
+        desiredAmbiance: aiCriteria.desiredAmbiance.trim(),
+      });
+      setBriefAnswers(result.answers);
+      setAiBriefGenerated(true);
+      toast.success("Brief généré par l'IA — vous pouvez passer aux photos.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Échec de la génération du brief");
+    }
   };
 
   useEffect(() => {
@@ -179,25 +241,76 @@ export default function NewProject() {
       return;
     }
 
-    const draft = loadProjectWizardDraft();
-    if (!draft) {
-      setDraftRestored(true);
-      return;
-    }
-
     void (async () => {
+      if (draftIdFromUrl && isAuthenticated) {
+        try {
+          const project = await utils.client.projects.get.query({ id: draftIdFromUrl });
+          if (project.status !== "draft") {
+            navigate(`/projects/${project.id}`);
+            return;
+          }
+          const { answers, meta } = splitWizardMeta(project.briefData ?? {});
+          setForm({
+            title: project.title,
+            spaceType: project.spaceType,
+            style: project.style === "brouillon" ? "" : project.style,
+            budget: project.budget ?? "",
+          });
+          setBriefAnswers(answers);
+          setBriefMode(meta.briefMode ?? null);
+          if (meta.aiCriteria) setAiCriteria(meta.aiCriteria);
+          setAiBriefGenerated(meta.briefMode === "ai" && Object.keys(answers).length > 0);
+          setBriefSectionIndex(meta.briefSectionIndex ?? 0);
+          setServerDraftId(project.id);
+          setPhotos(
+            project.photos.map((photo) => ({
+              file: null,
+              preview: photo.url,
+              title: photo.title ?? "",
+              existingPhotoId: photo.id,
+            }))
+          );
+          setMacroStep(
+            inferWizardStep({
+              meta,
+              hasPhotos: project.photos.length > 0,
+              title: project.title,
+              spaceType: project.spaceType,
+              style: project.style === "brouillon" ? "" : project.style,
+            })
+          );
+          setDraftRestored(true);
+          setLastSavedAt(new Date(project.updatedAt).getTime());
+          toast.success("Brouillon repris — continuez où vous en étiez.");
+          return;
+        } catch {
+          toast.error("Impossible de charger ce brouillon.");
+        }
+      }
+
+      const draft = loadProjectWizardDraft();
+      if (!draft) {
+        setDraftRestored(true);
+        return;
+      }
+
       setForm(draft.form);
       setBriefAnswers(draft.briefAnswers);
       setMacroStep(draft.macroStep);
       setBriefSectionIndex(draft.briefSectionIndex);
+      if (draft.briefMode) setBriefMode(draft.briefMode);
+      if (draft.aiCriteria) setAiCriteria(draft.aiCriteria);
+      if (draft.briefMode === "ai") {
+        setAiBriefGenerated(Object.keys(draft.briefAnswers).length > 0);
+      }
       if (draft.serverProjectId) setServerDraftId(draft.serverProjectId);
       const restoredPhotos = await restorePhotosFromDraft(draft);
-      setPhotos(restoredPhotos);
+      setPhotos(restoredPhotos.map((p) => ({ ...p, file: p.file as File })));
       setDraftRestored(true);
       setLastSavedAt(draft.savedAt);
       toast.success("Brouillon restauré — reprenez où vous en étiez.");
     })();
-  }, [authLoading, draftRestored, isAdminTestMode]);
+  }, [authLoading, draftRestored, isAdminTestMode, draftIdFromUrl, isAuthenticated, navigate, utils.client.projects.get]);
 
   useEffect(() => {
     if (!draftRestored || isAdminTestMode || flowPhase !== "wizard") return;
@@ -219,8 +332,14 @@ export default function NewProject() {
             briefAnswers,
             macroStep,
             briefSectionIndex,
-            photos,
+            photos: photos.filter((p): p is WizardPhoto & { file: File } => p.file !== null).map((p) => ({
+              file: p.file,
+              preview: p.preview,
+              title: p.title,
+            })),
             serverProjectId: serverDraftId ?? undefined,
+            briefMode,
+            aiCriteria,
           });
           setLastSavedAt(Date.now());
           setDraftSaveError(false);
@@ -232,7 +351,7 @@ export default function NewProject() {
               spaceType: form.spaceType,
               style: form.style || undefined,
               budget: form.budget || undefined,
-              briefData: briefAnswers,
+              briefData: buildBriefPayload(),
             });
             if (result.id) setServerDraftId(result.id);
           }
@@ -249,6 +368,9 @@ export default function NewProject() {
     macroStep,
     briefSectionIndex,
     photos,
+    briefMode,
+    aiCriteria,
+    buildBriefPayload,
     draftRestored,
     isAdminTestMode,
     flowPhase,
@@ -263,10 +385,16 @@ export default function NewProject() {
       briefAnswers,
       macroStep,
       briefSectionIndex,
-      photos,
+      photos: photos.filter((p): p is WizardPhoto & { file: File } => p.file !== null).map((p) => ({
+        file: p.file,
+        preview: p.preview,
+        title: p.title,
+      })),
       serverProjectId: serverDraftId ?? undefined,
+      briefMode,
+      aiCriteria,
     });
-  }, [form, briefAnswers, macroStep, briefSectionIndex, photos, serverDraftId]);
+  }, [form, briefAnswers, macroStep, briefSectionIndex, photos, serverDraftId, briefMode, aiCriteria]);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
@@ -282,7 +410,8 @@ export default function NewProject() {
 
   const removePhoto = (idx: number) => {
     setPhotos((prev) => {
-      URL.revokeObjectURL(prev[idx].preview);
+      const target = prev[idx];
+      if (target?.file) URL.revokeObjectURL(target.preview);
       return prev.filter((_, i) => i !== idx);
     });
   };
@@ -293,7 +422,12 @@ export default function NewProject() {
 
   const canProceedProject = form.title.trim().length > 0 && form.spaceType !== "";
   const canProceedStyle = form.style.length > 0;
-  const canProceedPhotos = photos.length >= 1;
+  const canProceedBriefMode = briefMode !== null;
+  const canProceedBrief =
+    briefMode === "manual" ? true : briefMode === "ai" ? aiBriefGenerated : false;
+  const canProceedPhotos =
+    photos.length >= 1 &&
+    photos.some((p) => p.file !== null || p.existingPhotoId !== undefined);
 
   const answeredCount = useMemo(
     () => Object.values(briefAnswers).filter((v) => v.trim().length > 0).length,
@@ -343,7 +477,7 @@ export default function NewProject() {
           spaceType: form.spaceType,
           style: form.style,
           budget: form.budget || undefined,
-          briefData: briefAnswers,
+          briefData: buildBriefPayload(),
         });
         projectId = project.id;
       } else if (!testProjectId) {
@@ -353,12 +487,18 @@ export default function NewProject() {
           spaceType: form.spaceType,
           style: form.style,
           budget: form.budget || undefined,
-          briefData: briefAnswers,
+          briefData: buildBriefPayload(),
         });
+      }
+
+      if (!photos.some((p) => p.existingPhotoId) && !photos.some((p) => p.file)) {
+        throw new Error("Ajoutez au moins une photo avant de générer");
       }
 
       for (let i = 0; i < photos.length; i++) {
         const photo = photos[i];
+        if (photo.existingPhotoId || !photo.file) continue;
+
         const { uploadUrl, key, url } = await getUploadUrl.mutateAsync({
           projectId,
           fileName: photo.file.name,
@@ -401,9 +541,13 @@ export default function NewProject() {
 
   const goBack = () => {
     if (macroStep === "style") setMacroStep("project");
+    else if (macroStep === "briefMode") setMacroStep("style");
     else if (macroStep === "brief") {
-      if (briefSectionIndex > 0) setBriefSectionIndex(briefSectionIndex - 1);
-      else setMacroStep("style");
+      if (briefMode === "manual" && briefSectionIndex > 0) {
+        setBriefSectionIndex(briefSectionIndex - 1);
+      } else {
+        setMacroStep("briefMode");
+      }
     } else if (macroStep === "photos") {
       if (isAdminTestMode) navigate("/admin/test");
       else setMacroStep("brief");
@@ -412,14 +556,18 @@ export default function NewProject() {
 
   const goNext = () => {
     if (macroStep === "project" && canProceedProject) setMacroStep("style");
-    else if (macroStep === "style" && canProceedStyle) {
+    else if (macroStep === "style" && canProceedStyle) setMacroStep("briefMode");
+    else if (macroStep === "briefMode" && canProceedBriefMode) {
       setBriefSectionIndex(0);
       setMacroStep("brief");
     } else if (macroStep === "brief") {
-      if (briefSectionIndex < sections.length - 1) {
-        setBriefSectionIndex(briefSectionIndex + 1);
-      } else {
-        setMacroStep("photos");
+      if (briefMode === "ai" && canProceedBrief) setMacroStep("photos");
+      else if (briefMode === "manual") {
+        if (briefSectionIndex < sections.length - 1) {
+          setBriefSectionIndex(briefSectionIndex + 1);
+        } else {
+          setMacroStep("photos");
+        }
       }
     } else if (macroStep === "photos" && canProceedPhotos) {
       setMacroStep("confirm");
@@ -606,12 +754,48 @@ export default function NewProject() {
               onBack={goBack}
               onNext={goNext}
               nextDisabled={!canProceedStyle}
-              nextLabel="Commencer le brief client"
+              nextLabel="Choisir le mode de brief"
             />
           </div>
         )}
 
-        {flowPhase === "wizard" && macroStep === "brief" && form.spaceType && (
+        {flowPhase === "wizard" && macroStep === "briefMode" && (
+          <div className="animate-fade-in-up">
+            <ProjectBriefModeStep
+              value={briefMode}
+              onChange={(mode) => {
+                setBriefMode(mode);
+                if (mode === "manual") setAiBriefGenerated(false);
+              }}
+            />
+            <WizardNav
+              onBack={goBack}
+              onNext={goNext}
+              nextDisabled={!canProceedBriefMode}
+              nextLabel="Continuer"
+            />
+          </div>
+        )}
+
+        {flowPhase === "wizard" && macroStep === "brief" && form.spaceType && briefMode === "ai" && (
+          <div className="animate-fade-in-up">
+            <ProjectBriefAiStep
+              criteria={aiCriteria}
+              onChange={(patch) => setAiCriteria((prev) => ({ ...prev, ...patch }))}
+              onGenerate={handleGenerateAiBrief}
+              isGenerating={generateBrief.isPending}
+              generated={aiBriefGenerated}
+            />
+            <WizardNav
+              onBack={goBack}
+              onNext={goNext}
+              nextDisabled={!canProceedBrief}
+              nextLabel="Passer aux photos"
+            />
+          </div>
+        )}
+
+        {flowPhase === "wizard" && macroStep === "brief" && form.spaceType && briefMode === "manual" && (
           <div className="wizard-panel animate-fade-in-up">
             <ProjectBriefStep
               sections={sections}
@@ -743,7 +927,11 @@ export default function NewProject() {
               {form.budget && <RecapRow label="Budget" value={form.budget} />}
               <RecapRow
                 label="Brief client"
-                value={`${sections.length} thèmes · ${answeredCount} réponse${answeredCount !== 1 ? "s" : ""}`}
+                value={
+                  briefMode === "ai"
+                    ? `IA · ${answeredCount} réponse${answeredCount !== 1 ? "s" : ""}`
+                    : `Manuel · ${answeredCount} réponse${answeredCount !== 1 ? "s" : ""}`
+                }
               />
               <RecapRow
                 label="Photos"

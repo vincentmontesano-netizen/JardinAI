@@ -57,8 +57,11 @@ require_var DOMAIN
 require_not_default JWT_SECRET "change-me-in-production"
 require_not_default POSTGRES_PASSWORD "postgres"
 require_var GEMINI_API_KEY
-require_var BUILT_IN_FORGE_API_URL
-require_var BUILT_IN_FORGE_API_KEY
+if [[ -n "${BUILT_IN_FORGE_API_URL:-}" && -n "${BUILT_IN_FORGE_API_KEY:-}" ]]; then
+  green "  ✓ Stockage Forge (S3)"
+else
+  yellow "  ⚠ BUILT_IN_FORGE_* absent — stockage local sur volume jardinia_uploads"
+fi
 require_var STRIPE_SECRET_KEY
 if [[ -z "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
   yellow "  ⚠ STRIPE_WEBHOOK_SECRET absent — OK en test (confirmPayment sur /payment/success)"

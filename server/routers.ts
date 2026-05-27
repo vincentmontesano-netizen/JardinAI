@@ -420,6 +420,34 @@ export const appRouter = router({
         return { id: result.id };
       }),
 
+    generateBrief: protectedProcedure
+      .input(
+        z.object({
+          title: z.string().min(1).max(255),
+          spaceType: z.enum(["interior", "exterior", "both"]),
+          style: z.string().min(1).max(100),
+          budget: z.string().optional(),
+          clientGoals: z.string().min(1),
+          mainConstraints: z.string().min(1),
+          desiredAmbiance: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { generateBriefFromCriteria } = await import("./_core/gemini");
+        const answers = await generateBriefFromCriteria({
+          title: input.title,
+          spaceType: input.spaceType,
+          style: input.style,
+          budget: input.budget,
+          criteria: {
+            clientGoals: input.clientGoals,
+            mainConstraints: input.mainConstraints,
+            desiredAmbiance: input.desiredAmbiance,
+          },
+        });
+        return { answers };
+      }),
+
     getUploadUrl: protectedProcedure
       .input(
         z.object({

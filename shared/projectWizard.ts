@@ -1,6 +1,7 @@
 export const WIZARD_MACRO_STEPS = [
   { id: "project", label: "Projet", description: "Nom & type d'espace" },
   { id: "style", label: "Style", description: "Direction esthétique" },
+  { id: "briefMode", label: "Brief", description: "Mode de saisie" },
   { id: "brief", label: "Brief client", description: "Interrogatoire guidé" },
   { id: "photos", label: "Photos", description: "Ancrage visuel" },
   { id: "confirm", label: "Validation", description: "Récapitulatif" },
