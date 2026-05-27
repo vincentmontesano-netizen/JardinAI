@@ -3,7 +3,8 @@ version: "3.8"
 name: jardinia
 
 # Stack Docker — dev local + déploiement Hostinger / VPS
-# Hostinger (panneau) : JWT_SECRET, POSTGRES_PASSWORD, APP_PORT=80, GEMINI_API_KEY
+# Hostinger (panneau) : JWT_SECRET, POSTGRES_PASSWORD, APP_PORT=80, GEMINI_API_KEY,
+# OWNER_EMAIL, ADMIN_SEED_PASSWORD (compte admin créé au démarrage)
 # Ne PAS définir DATABASE_URL ni DB_HOST dans le panneau (hôte obsolète supabase-db / jardinia-db).
 # Ancien déploiement Supabase/PG15 : supprimer le projet Hostinger puis redéployer (volume jardinia_pg_v2).
 

@@ -29,5 +29,12 @@ fi
 echo "[entrypoint] Exécution des migrations Drizzle..."
 pnpm exec drizzle-kit migrate
 
+if [ -n "$OWNER_EMAIL" ] && [ -n "$ADMIN_SEED_PASSWORD" ]; then
+  echo "[entrypoint] Initialisation du compte admin ($OWNER_EMAIL)..."
+  node dist/scripts/seed-admin.js
+else
+  echo "[entrypoint] AVERTISSEMENT: OWNER_EMAIL ou ADMIN_SEED_PASSWORD absent — connexion admin impossible."
+fi
+
 echo "[entrypoint] Démarrage du serveur..."
 exec node dist/index.js

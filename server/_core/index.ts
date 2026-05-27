@@ -34,7 +34,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function seedAdminIfConfigured() {
   const password = process.env.ADMIN_SEED_PASSWORD;
-  if (!ENV.ownerEmail || !password) return;
+  if (!ENV.ownerEmail || !password) {
+    if (ENV.isProduction) {
+      console.warn(
+        "[Auth] OWNER_EMAIL ou ADMIN_SEED_PASSWORD manquant — aucun compte admin créé automatiquement."
+      );
+    }
+    return;
+  }
 
   try {
     await ensureAdminAccount({

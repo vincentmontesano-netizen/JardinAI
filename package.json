@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
     "build": "vite build && pnpm build:server",
-    "build:server": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build:server": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild scripts/seed-admin.ts --platform=node --packages=external --bundle --format=esm --outdir=dist/scripts",
     "start": "NODE_ENV=production node dist/index.js",
     "db:migrate": "drizzle-kit migrate",
     "db:seed-admin": "tsx scripts/seed-admin.ts",

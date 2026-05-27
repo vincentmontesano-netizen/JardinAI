@@ -79,6 +79,8 @@ Application disponible sur **http://localhost:8090** en local (`APP_PORT=8090`) 
    - `POSTGRES_PASSWORD` — mot de passe fort
    - `APP_PORT=80` — port exposé par Hostinger
    - `GEMINI_API_KEY` — clé Google AI
+   - `OWNER_EMAIL` — email du compte administrateur (ex. `vincent.sanonc@gmail.com`)
+   - `ADMIN_SEED_PASSWORD` — mot de passe admin (créé/mis à jour à chaque démarrage backend)
 3. **Ne pas** définir `DATABASE_URL` ni `DB_HOST` dans le panneau (anciennes valeurs `supabase-db` / `jardinia-db` cassent le backend).
 4. **Supprimez l’ancien projet** dans Docker Manager (volume PG15 Supabase incompatible), puis redéployez depuis `main`.
 5. Relancer le déploiement — le volume **`jardinia_pg_v2`** créera une base PostgreSQL 16 vierge.
