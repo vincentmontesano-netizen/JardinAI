@@ -1,5 +1,8 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
+export const STRIPE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+
 export function isOAuthConfigured(): boolean {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL?.trim();
   const appId = import.meta.env.VITE_APP_ID?.trim();
