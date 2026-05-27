@@ -235,7 +235,11 @@ export default function NewProject() {
   const handleSubmit = async () => {
     if (!canProceedProject || !canProceedStyle || !canProceedPhotos || !form.spaceType) return;
 
-    await persistDraft();
+    try {
+      await persistDraft();
+    } catch {
+      toast.error("Impossible de sauvegarder le brouillon (stockage navigateur plein). Continuez quand même.");
+    }
 
     if (!isAuthenticated) {
       toast.message("Connectez-vous pour générer votre compte rendu");
