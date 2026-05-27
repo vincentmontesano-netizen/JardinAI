@@ -1,0 +1,19 @@
+# ACME_EMAIL optionnel dans .env — si renseigné, ajouter dans docker/Caddyfile :
+# { email votre@email.com }
+
+{$DOMAIN} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-X-Powered-By
+	}
+
+	reverse_proxy frontend:80 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+}

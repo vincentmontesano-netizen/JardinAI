@@ -1,0 +1,63 @@
+services:
+  supabase-db:
+    image: supabase/postgres:15.8.1.060
+    container_name: jardinia-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - jardinia_pg_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: jardinia-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@supabase-db:5432/postgres}
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      SERVE_STATIC: "false"
+      DB_HOST: supabase-db
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      APP_ID: ${APP_ID:-jardinia}
+      TRUST_PROXY: "true"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    expose:
+      - "3000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL:-}
+        VITE_APP_ID: ${APP_ID:-jardinia}
+        VITE_ANALYTICS_ENDPOINT: ${VITE_ANALYTICS_ENDPOINT:-}
+        VITE_ANALYTICS_WEBSITE_ID: ${VITE_ANALYTICS_WEBSITE_ID:-}
+    container_name: jardinia-frontend
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8090}:80"
+    depends_on:
+      - backend
+
+volumes:
+  jardinia_pg_data:

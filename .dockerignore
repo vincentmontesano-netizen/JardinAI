@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.manus-logs
+*.log
+.env
+.env.local
+attached_assets
+coverage
+.DS_Store
