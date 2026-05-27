@@ -24,25 +24,16 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
+  const isLocal = LOCAL_HOSTS.has(req.hostname);
+  const secure = isLocal ? false : isSecureRequest(req);
 
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
+  // SameSite=None exige Secure — sur HTTP (IP Hostinger sans TLS) le navigateur ignore le cookie.
+  const sameSite: CookieOptions["sameSite"] = secure ? "none" : "lax";
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: LOCAL_HOSTS.has(req.hostname) ? "lax" : "none",
-    secure: LOCAL_HOSTS.has(req.hostname) ? false : isSecureRequest(req),
+    sameSite,
+    secure,
   };
 }

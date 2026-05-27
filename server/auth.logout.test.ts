@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
+import { getSessionCookieOptions } from "./_core/cookies";
 
 type CookieCall = {
   name: string;
@@ -58,5 +59,14 @@ describe("auth.logout", () => {
       httpOnly: true,
       path: "/",
     });
+  });
+
+  it("uses lax cookies on plain HTTP (e.g. VPS IP without TLS)", () => {
+    const opts = getSessionCookieOptions({
+      hostname: "76.13.45.7",
+      protocol: "http",
+      headers: {},
+    } as TrpcContext["req"]);
+    expect(opts).toMatchObject({ sameSite: "lax", secure: false });
   });
 });
