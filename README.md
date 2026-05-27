@@ -79,7 +79,10 @@ Application disponible sur **http://localhost:8090** en local (`APP_PORT=8090`) 
    - `POSTGRES_PASSWORD` — mot de passe fort
    - `APP_PORT=80` — port exposé par Hostinger
    - `GEMINI_API_KEY` — clé Google AI
-3. Relancer le déploiement après push.
+3. **Supprimez l’ancien projet** dans Docker Manager (volume PG15 Supabase incompatible), puis redéployez depuis `main`.
+4. Relancer le déploiement — le volume **`jardinia_pg_v2`** créera une base PostgreSQL 16 vierge.
+
+> Erreur `database files are incompatible` ou `supabase_admin` : l’ancien volume `jardinia_pg_data` (Supabase PG15) est encore monté. Suppression du projet obligatoire une fois.
 
 > Ne pas utiliser l'image `supabase/postgres` sur un petit VPS : elle échoue souvent au healthcheck.  
 > La stack utilise `postgres:16-alpine` (léger, stable).
